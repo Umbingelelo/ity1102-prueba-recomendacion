@@ -1,0 +1,16 @@
+# Lo que NO entra al contexto de construcción (las imágenes se construyen desde la raíz).
+# Ojo: datos/tratados y modelo/artefactos SÍ entran: la carga y la IA los copian adentro.
+.git
+.github
+.env
+*.pem
+datos/crudos
+guia
+casos
+pruebas
+sagemaker
+medicion-*
+**/__pycache__
+**/tests
+.pytest_cache
+.venv

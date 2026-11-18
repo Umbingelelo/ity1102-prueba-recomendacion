@@ -1,0 +1,49 @@
+{
+  "uid": "proyecto",
+  "title": "Proyecto · sistema de IA",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Latencia p95 por ruta (s)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{ruta}}",
+        "expr": "histogram_quantile(0.95, sum by (le, ruta) (rate(dominio_latencia_segundos_bucket[1m])))" }]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Solicitudes por segundo por código",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{codigo}}",
+        "expr": "sum by (codigo) (rate(dominio_peticiones_total[1m]))" }]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Decisiones por origen (modelo, reserva, regla)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{origen}}",
+        "expr": "sum by (origen) (rate(dominio_decisiones_total[5m]))" }]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "IA: latencia p95 por réplica (s)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "legendFormat": "{{instance}}",
+        "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(ia_latencia_segundos_bucket[1m])))" }]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Réplicas de IA arriba",
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "count(up{job=\"ia\"} == 1)" }]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Errores del modelo (último minuto)",
+      "gridPos": { "x": 6, "y": 16, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(ia_predicciones_total{resultado=\"error\"}[1m])) or vector(0)" }]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · Proyecto ITY1102</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <header>
+    <h1 id="titulo">Dashboard</h1>
+    <nav><a href="./">Predicción</a> <a href="dashboard.html" class="activo">Dashboard</a> <a href="/docs">API</a></nav>
+  </header>
+  <main>
+    <section id="bloque-clave" hidden>
+      <label>Clave de API (X-API-Key) <input id="clave" type="password" autocomplete="off"></label>
+    </section>
+    <section>
+      <h2>Estado del sistema <small class="suave">GET /api/health</small></h2>
+      <div id="salud" class="tarjetas"></div>
+    </section>
+    <section>
+      <h2>Resultados del modelo <small class="suave">GET /api/dashboard · se actualiza cada 10 s</small></h2>
+      <div id="general" class="tarjetas"></div>
+      <div id="propio"></div>
+    </section>
+    <section id="error" class="error" hidden></section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

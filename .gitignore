@@ -1,0 +1,17 @@
+# Secretos: nunca a Git
+.env
+*.pem
+# Lo que generan los scripts (el pipeline lo vuelve a generar en cada ejecución)
+datos/tratados/
+modelo/artefactos/
+sagemaker/estado.json
+medicion-*/
+carga_*.csv
+# Python y editores
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.DS_Store
+.vscode/
+.idea/

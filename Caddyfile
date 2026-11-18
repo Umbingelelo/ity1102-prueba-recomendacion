@@ -1,0 +1,13 @@
+# HTTPS para todo lo que llega desde afuera (EP3 §2.4). Caddy pide y renueva solo el certificado de
+# Let's Encrypt para DOMINIO, que en la EC2 es <tu-ip-elastica-con-guiones>.sslip.io.
+# Con DOMINIO=localhost (ensayo en tu computador) usa un certificado propio: el navegador avisa, es normal.
+{$DOMINIO} {
+	encode gzip
+
+	# La IA y las rutas internas no se publican hacia internet: solo se llega desde la red de Docker.
+	@interno path /api/ia/* /interno/* /metrics
+	respond @interno "No encontrado" 404
+
+	# Todo lo demás va al gateway de EP2, que reparte entre front, dominio e IA
+	reverse_proxy gateway:8080
+}

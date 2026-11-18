@@ -1,0 +1,6 @@
+{
+  "_que_es": "La métrica que decide si el modelo se publica y su mínimo. Si el modelo nuevo no llega al mínimo, entrenar.py termina con error y el pipeline no construye la imagen de IA. DESAFÍO M1: fija el mínimo de tu caso y defiéndelo contra la línea base.",
+  "recomendacion": {"metrica": "roc_auc", "minimo": 0.70},
+  "chatbot": {"metrica": "f1_macro", "minimo": 0.95},
+  "fraude": {"metrica": "pr_auc", "minimo": 0.30}
+}

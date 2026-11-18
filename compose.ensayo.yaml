@@ -1,0 +1,40 @@
+# Ensayo de EP3 en tu computador, SIN AWS y SIN clave de NVIDIA: el mismo sistema de la nube, pero
+# SageMaker y NVIDIA los reemplaza un doble (pruebas/dobles/dobles.py) que responde igual que ellos.
+# Sirve para probar la cola, el worker, el modo degradado y HTTPS antes de gastar crédito.
+#
+#     herramientas/ensayo-nube.sh
+#
+# Las «claves» de AWS de abajo son de mentira y obligatorias: boto3 firma cada pedido aunque el destino
+# sea el doble. En la EC2 no hay ninguna: allí las entrega el rol de la instancia (LabInstanceProfile).
+services:
+  dobles:
+    image: proyecto-ia:local
+    command: ["python", "/dobles/dobles.py"]
+    volumes:
+      - ./pruebas/dobles:/dobles:ro
+    environment:
+      DOBLE_LLM: ${DOBLE_LLM:-ok}
+      DOBLE_COLD_START_MS: ${DOBLE_COLD_START_MS:-0}
+
+  ia:
+    environment:
+      MOTOR: sagemaker
+      AWS_ENDPOINT_URL_SAGEMAKER_RUNTIME: http://dobles:9000
+      AWS_ENDPOINT_URL_SAGEMAKER: http://dobles:9000
+      AWS_ACCESS_KEY_ID: ensayo-no-es-una-clave
+      AWS_SECRET_ACCESS_KEY: ensayo-no-es-una-clave
+    depends_on:
+      dobles: { condition: service_started }
+
+  worker:
+    image: proyecto-worker:local
+    build: { context: servicios/worker }
+    environment:
+      NVIDIA_BASE_URL: http://dobles:9000/v1
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-ensayo}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-modelo-de-ensayo}
+      NVIDIA_ESPERA_BASE: "0.5"
+
+  caddy:
+    ports: !override
+      - "${PUERTO_HTTPS:-8443}:443"

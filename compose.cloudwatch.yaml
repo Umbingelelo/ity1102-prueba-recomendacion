@@ -1,0 +1,20 @@
+# Solo en la EC2: manda los logs de cada contenedor a CloudWatch Logs (grupo /ity1102/proyecto).
+# Quien escribe en CloudWatch es Docker en la EC2, con el rol LabInstanceProfile: sin claves.
+# Cada contenedor queda en su propio stream, con su nombre (proyecto-ia-1, proyecto-ia-2, ...).
+# Si «docker compose up» falla con AccessDenied en awslogs, saca este archivo de COMPOSE_FILE en el .env
+# y avisa al docente: el rol no deja escribir logs.
+x-cloudwatch: &cloudwatch
+  driver: awslogs
+  options:
+    awslogs-region: us-east-1
+    awslogs-group: /ity1102/proyecto
+    awslogs-create-group: "true"
+    tag: "{{.Name}}"
+
+services:
+  gateway: { logging: *cloudwatch }
+  dominio: { logging: *cloudwatch }
+  ia: { logging: *cloudwatch }
+  worker: { logging: *cloudwatch }
+  carga: { logging: *cloudwatch }
+  caddy: { logging: *cloudwatch }

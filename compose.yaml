@@ -1,0 +1,129 @@
+# El sistema completo de EP2, listo para la defensa. Se levanta con DOS comandos, en un computador que
+# no tiene el código, descargando las imágenes que publicó el pipeline:
+#
+#     docker compose -p equipoNN pull
+#     docker compose -p equipoNN up -d
+#
+# y después http://localhost:8080. Las nueve reglas de EP2 §2.3, una por una:
+#   1. Sin «build:»: solo «image:» de GHCR.            6. cpus y mem_limit en cada servicio propio.
+#   2. Imágenes públicas y linux/amd64 (pipeline).     7. Menos de 2 GB sumando todas las imágenes.
+#   3. Sin bind mounts: modelo y datos van en la imagen. 8. Sin secretos: todo tiene valor por defecto.
+#   4. Solo el gateway publica puerto: el 8080.        9. pull + up -d, y nada más.
+#   5. healthcheck en cada servicio propio y depends_on con condición.
+#
+# «tu-usuario/tu-repo» lo reemplaza herramientas/iniciar.sh con tu repositorio. El pipeline falla si
+# alguien lo deja sin reemplazar. TAG es «ep2» por defecto; en EP3 el servidor usa «ep3».
+#
+# Los límites (cpus, mem_limit) son el punto de partida. DESAFÍO S1: mídelos con docker stats bajo
+# carga (herramientas/medir.sh), ajústalos y escribe la medición en el capítulo 7.2.
+
+services:
+  gateway:
+    image: ghcr.io/tu-usuario/tu-repo-gateway:${TAG:-ep2}
+    ports:
+      - "${PUERTO_GATEWAY:-8080}:8080"
+    depends_on:
+      front: { condition: service_healthy }
+      dominio: { condition: service_healthy }
+      ia: { condition: service_healthy }
+    healthcheck:
+      # 127.0.0.1 y no «localhost»: en Alpine, localhost puede resolver primero a IPv6 (::1)
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/salud"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    cpus: 0.25
+    mem_limit: 64m
+    restart: unless-stopped
+
+  front:
+    image: ghcr.io/tu-usuario/tu-repo-front:${TAG:-ep2}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    cpus: 0.25
+    mem_limit: 32m
+    restart: unless-stopped
+
+  dominio:
+    image: ghcr.io/tu-usuario/tu-repo-dominio:${TAG:-ep2}
+    environment:
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:-app}@db:5432/proyecto
+      URL_IA: http://gateway:8080/api/ia
+      API_KEYS: ${API_KEYS:-}
+      LIMITE_POR_MINUTO: ${LIMITE_POR_MINUTO:-120}
+      RABBITMQ_URL: ${RABBITMQ_URL:-}
+      # Configuración del caso (vacío = el valor por defecto del código). Se cambia en el .env y
+      # «docker compose up -d dominio», sin desplegar código (RF3 del caso 3, RF6/RNF9 del caso 1).
+      TIMEOUT_MODELO_MS: ${TIMEOUT_MODELO_MS:-}
+      UMBRAL_REVISAR: ${UMBRAL_REVISAR:-}
+      UMBRAL_BLOQUEAR: ${UMBRAL_BLOQUEAR:-}
+      POLITICA_RESERVA: ${POLITICA_RESERVA:-}
+      RECOMENDADOR_ACTIVO: ${RECOMENDADOR_ACTIVO:-}
+      CATEGORIAS_VETADAS: ${CATEGORIAS_VETADAS:-}
+      CATEGORIAS_EN_LISTA: ${CATEGORIAS_EN_LISTA:-}
+      UMBRAL_CONFIANZA: ${UMBRAL_CONFIANZA:-}
+      MAX_INTENTOS_FALLIDOS: ${MAX_INTENTOS_FALLIDOS:-}
+      MAX_ARTICULOS: ${MAX_ARTICULOS:-}
+    depends_on:
+      db: { condition: service_healthy }
+      carga: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    cpus: 0.5
+    mem_limit: 192m
+    restart: unless-stopped
+
+  ia:
+    image: ghcr.io/tu-usuario/tu-repo-ia:${TAG:-ep2}
+    deploy:
+      replicas: 2                 # dos réplicas: el gateway las reparte y sobrevive a que caiga una
+    environment:
+      MOTOR: ${MOTOR:-local}      # EP3: sagemaker
+      ENDPOINT: ${ENDPOINT:-}
+      AWS_DEFAULT_REGION: us-east-1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    cpus: 0.5
+    mem_limit: 320m
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: proyecto
+    volumes:
+      - datos_db:/var/lib/postgresql/data      # volumen con nombre: los datos sobreviven a un «down»
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d proyecto"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    cpus: 0.5
+    mem_limit: 256m
+    restart: unless-stopped
+
+  carga:
+    image: ghcr.io/tu-usuario/tu-repo-carga:${TAG:-ep2}
+    environment:
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:-app}@db:5432/proyecto
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"                 # corre una vez y termina; si corre de nuevo, no duplica filas
+    cpus: 0.5
+    mem_limit: 128m
+
+volumes:
+  datos_db:

@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: proyecto
+    folder: Proyecto
+    type: file
+    options:
+      path: /etc/grafana/dashboards

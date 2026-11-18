@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proyecto ITY1102</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <header>
+    <h1 id="titulo">Cargando…</h1>
+    <nav><a href="./" class="activo">Predicción</a> <a href="dashboard.html">Dashboard</a> <a href="/docs">API</a></nav>
+  </header>
+  <main>
+    <p id="descripcion" class="suave"></p>
+
+    <section id="bloque-clave" hidden>
+      <label>Clave de API (X-API-Key) <input id="clave" type="password" autocomplete="off"></label>
+      <p class="suave">Se guarda solo en esta pestaña. Sin clave, la API responde 401.</p>
+    </section>
+
+    <form id="formulario"></form>
+
+    <section id="resultado" hidden>
+      <h2>Resultado</h2>
+      <div id="resumen"></div>
+      <div id="detalle"></div>
+      <div id="llm"></div>
+    </section>
+
+    <section id="error" class="error" hidden></section>
+
+    <div id="listas"></div>
+
+    <section>
+      <h2>Últimas predicciones</h2>
+      <table id="historial"><thead><tr><th>Fecha</th><th>Decisión</th><th>Probabilidad</th><th>Origen</th><th>Modelo</th><th>ms</th><th>LLM</th></tr></thead><tbody></tbody></table>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

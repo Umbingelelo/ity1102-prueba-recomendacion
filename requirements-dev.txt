@@ -1,0 +1,6 @@
+# Todo lo necesario para correr las pruebas de todos los servicios en un solo entorno (lo usa el pipeline).
+-r datos/requirements.txt
+-r servicios/ia/requirements.txt
+-r servicios/dominio/requirements.txt
+-r servicios/worker/requirements.txt
+pytest==9.2.0

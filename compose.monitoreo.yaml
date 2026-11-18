@@ -1,0 +1,41 @@
+# Monitoreo con Prometheus y Grafana (el del L8), encima de tu sistema. Opcional y sumable:
+#
+#   En tu computador:  docker compose -p proyecto -f compose.yaml -f compose.monitoreo.yaml up -d
+#   En la EC2:         agrega «:compose.monitoreo.yaml» al final de COMPOSE_FILE en el .env
+#
+# Grafana:     http://localhost:3000 (admin / la contraseña de GRAFANA_PASSWORD, por defecto admin)
+# Prometheus:  http://localhost:9090/alerts
+# En la EC2 los dos quedan solo en 127.0.0.1: se abren con un túnel SSH, nunca con el security group:
+#   ssh -i labsuser.pem -L 3000:localhost:3000 -L 9090:localhost:9090 ubuntu@<IP-elástica>
+services:
+  prometheus:
+    image: prom/prometheus:v3.13.4
+    volumes:
+      - ./monitoreo/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoreo/alertas.yml:/etc/prometheus/alertas.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    cpus: 0.25
+    mem_limit: 256m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.4.12
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./monitoreo/grafana/datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./monitoreo/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/proyecto.yml:ro
+      - ./monitoreo/grafana/proyecto.json:/etc/grafana/dashboards/proyecto.json:ro
+      - grafana_datos:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    cpus: 0.5
+    mem_limit: 384m
+    restart: unless-stopped
+
+volumes:
+  grafana_datos:

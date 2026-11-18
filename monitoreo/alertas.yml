@@ -1,0 +1,36 @@
+# Alertas: cada una es «métrica + umbral + cuánto tiempo + qué hacer». Van al capítulo 8.1 del arc42.
+# DESAFÍO O1 · ajusta los umbrales al RNF de rendimiento de TU caso (200 ms, 3 s o 100 ms).
+groups:
+  - name: proyecto
+    rules:
+      - alert: PrediccionLenta
+        expr: histogram_quantile(0.95, sum by (le) (rate(dominio_latencia_segundos_bucket{ruta="/api/predict"}[1m]))) > 0.5
+        for: 1m
+        labels: { severidad: alta }
+        annotations:
+          resumen: "p95 de POST /api/predict sobre 500 ms durante 1 minuto"
+          accion: "Revisar la IA (¿cold start de SageMaker?, ¿una réplica caída?) y el dominio con docker stats"
+
+      - alert: ErroresDelServidor
+        expr: sum(rate(dominio_peticiones_total{codigo=~"5.."}[1m])) / clamp_min(sum(rate(dominio_peticiones_total[1m])), 0.001) > 0.05
+        for: 1m
+        labels: { severidad: alta }
+        annotations:
+          resumen: "Más del 5% de las respuestas del dominio son 5xx"
+          accion: "docker compose logs dominio --tail 50 y revisar /api/health"
+
+      - alert: ModeloEnReserva
+        expr: sum(rate(dominio_decisiones_total{origen="reserva"}[5m])) / clamp_min(sum(rate(dominio_decisiones_total[5m])), 0.001) > 0.2
+        for: 2m
+        labels: { severidad: media }
+        annotations:
+          resumen: "Más del 20% de las decisiones salen de la política de reserva: el modelo no responde a tiempo"
+          accion: "Medir la latencia de la IA (ia_latencia_segundos) y el estado del endpoint en /api/health"
+
+      - alert: ReplicaDeIACaida
+        expr: count(up{job="ia"} == 1) < 2
+        for: 30s
+        labels: { severidad: media }
+        annotations:
+          resumen: "Hay menos de dos réplicas de IA respondiendo"
+          accion: "docker compose ps ia; docker compose up -d ia"

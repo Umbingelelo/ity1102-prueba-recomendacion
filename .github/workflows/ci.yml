@@ -1,0 +1,161 @@
+# El pipeline del proyecto (EP2 §2.5 y EP3 §2.6). Una sola cadena para los dos:
+#
+#   datos-y-modelo ─► pruebas ─┐
+#   reglas-compose ────────────┴─► imagenes (6, en paralelo) ─► desplegar (solo EP3, si está activado)
+#
+# | Evento                         | Qué pasa                                                            |
+# |--------------------------------|---------------------------------------------------------------------|
+# | pull request hacia dev o main  | datos, modelo con gate, pruebas y build SIN publicar                |
+# | push a main (el merge de dev)  | lo mismo y publica en GHCR con sha-xxxxxxx y latest                 |
+# | tag ep2 o ep3 sobre main       | publica la misma imagen con el tag ep2 o ep3                         |
+# | push a main o tag ep3          | y si la variable DESPLEGAR = si, despliega en la EC2 por SSH        |
+#
+# Si algo falla (un dato duplicado, la métrica bajo el mínimo, una prueba), no se publica ninguna imagen.
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [main]
+    tags: [ep2, ep3]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  datos-y-modelo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r datos/requirements.txt
+      - name: Tratamiento de datos (datos/preparar.py)
+        run: python datos/preparar.py
+      - name: Entrenamiento y gate de calidad (modelo/entrenar.py)
+        run: |
+          echo "VERSION_MODELO=$(cat CASO)-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          VERSION_MODELO="$(cat CASO)-${GITHUB_SHA::7}" python modelo/entrenar.py
+      - name: Resumen en la página del workflow
+        run: cat modelo/artefactos/METRICAS.md datos/tratados/REPORTE.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artefactos
+          path: |
+            datos/tratados/
+            modelo/artefactos/
+          retention-days: 30
+
+  pruebas:
+    needs: datos-y-modelo
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: proyecto }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app -d proyecto" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: artefactos }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - name: Datos tratados (sin nulos ni duplicados en las claves)
+        run: pytest -v tests
+      - name: Microservicio de IA
+        run: PYTHONPATH=servicios/ia:. pytest -v servicios/ia/tests
+      - name: Microservicio de dominio (contra PostgreSQL)
+        env: { DATABASE_URL: "postgresql://app:app@localhost:5432/proyecto" }
+        run: PYTHONPATH=servicios/dominio:. pytest -v servicios/dominio/tests
+      - name: Worker del LLM
+        run: PYTHONPATH=servicios/worker pytest -v servicios/worker/tests
+
+  reglas-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Las nueve reglas del compose.yaml de la defensa (EP2 §2.3)
+        run: herramientas/verificar-defensa.sh
+
+  imagenes:
+    needs: [pruebas, reglas-compose]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        servicio: [gateway, front, dominio, ia, carga, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: artefactos }
+      - name: Nombre de la imagen y contexto de construcción
+        run: |
+          echo "IMAGEN=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.servicio }}" >> "$GITHUB_ENV"
+          echo "CASO=$(cat CASO)" >> "$GITHUB_ENV"
+          case "${{ matrix.servicio }}" in
+            gateway|front|worker) echo "CONTEXTO=servicios/${{ matrix.servicio }}" >> "$GITHUB_ENV" ;;
+            *) echo "CONTEXTO=." >> "$GITHUB_ENV" ;;
+          esac
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGEN }}
+          # sha-xxxxxxx siempre; latest en main; ep2/ep3 cuando el evento es ese tag.
+          # Además agrega la etiqueta org.opencontainers.image.revision con el commit (IE10).
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=tag
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXTO }}
+          file: servicios/${{ matrix.servicio }}/Dockerfile
+          build-args: CASO=${{ env.CASO }}
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.servicio }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.servicio }}
+
+  desplegar:
+    # EP3: se activa creando la variable de repositorio DESPLEGAR = si (Settings → Variables → Actions)
+    needs: imagenes
+    if: >-
+      github.event_name == 'push' && vars.DESPLEGAR == 'si' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/ep3')
+    runs-on: ubuntu-latest
+    concurrency: { group: despliegue, cancel-in-progress: false }
+    steps:
+      - name: Entrar por SSH a la EC2 y actualizar
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/${{ github.event.repository.name }}
+            git fetch --tags --force origin && git checkout --quiet ${{ github.sha }}
+            # Las imágenes son públicas (EP2 §2.3): no hace falta sesión. Solo si las dejaron privadas,
+            # se usan los secretos GHCR_USUARIO y GHCR_PAT (token clásico con read:packages).
+            if [ -n "${{ secrets.GHCR_PAT }}" ]; then
+              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USUARIO }}" --password-stdin
+            fi
+            # La versión desplegada queda escrita en el .env: cualquier «docker compose» posterior usa la misma.
+            # Volver atrás = poner el sha anterior en TAG y «docker compose up -d».
+            SHA="${{ github.sha }}"
+            sed -i "s|^TAG=.*|TAG=sha-${SHA::7}|" .env
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+            docker compose ps

@@ -1,0 +1,25 @@
+# Solo para trabajar en tu computador: construye las imágenes desde el código en vez de descargarlas.
+# NO es el archivo de la defensa (la defensa no puede tener «build:»). Úsalo con:
+#
+#     herramientas/levantar-local.sh
+#
+# que corre preparar.py y entrenar.py y después:
+#     docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+#
+# CASO llega desde el archivo CASO (lo lee el script).
+services:
+  gateway:
+    image: proyecto-gateway:local
+    build: { context: servicios/gateway }
+  front:
+    image: proyecto-front:local
+    build: { context: servicios/front }
+  dominio:
+    image: proyecto-dominio:local
+    build: { context: ., dockerfile: servicios/dominio/Dockerfile, args: { CASO: "${CASO:?usa herramientas/levantar-local.sh}" } }
+  ia:
+    image: proyecto-ia:local
+    build: { context: ., dockerfile: servicios/ia/Dockerfile, args: { CASO: "${CASO:?usa herramientas/levantar-local.sh}" } }
+  carga:
+    image: proyecto-carga:local
+    build: { context: ., dockerfile: servicios/carga/Dockerfile, args: { CASO: "${CASO:?usa herramientas/levantar-local.sh}" } }
