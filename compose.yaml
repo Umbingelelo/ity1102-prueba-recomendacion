@@ -19,7 +19,7 @@
 
 services:
   gateway:
-    image: ghcr.io/tu-usuario/tu-repo-gateway:${TAG:-ep2}
+    image: ghcr.io/umbingelelo/ity1102-prueba-recomendacion-gateway:${TAG:-ep2}
     ports:
       - "${PUERTO_GATEWAY:-8080}:8080"
     depends_on:
@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
 
   front:
-    image: ghcr.io/tu-usuario/tu-repo-front:${TAG:-ep2}
+    image: ghcr.io/umbingelelo/ity1102-prueba-recomendacion-front:${TAG:-ep2}
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
       interval: 10s
@@ -48,7 +48,7 @@ services:
     restart: unless-stopped
 
   dominio:
-    image: ghcr.io/tu-usuario/tu-repo-dominio:${TAG:-ep2}
+    image: ghcr.io/umbingelelo/ity1102-prueba-recomendacion-dominio:${TAG:-ep2}
     environment:
       DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:-app}@db:5432/proyecto
       URL_IA: http://gateway:8080/api/ia
@@ -81,7 +81,7 @@ services:
     restart: unless-stopped
 
   ia:
-    image: ghcr.io/tu-usuario/tu-repo-ia:${TAG:-ep2}
+    image: ghcr.io/umbingelelo/ity1102-prueba-recomendacion-ia:${TAG:-ep2}
     deploy:
       replicas: 2                 # dos réplicas: el gateway las reparte y sobrevive a que caiga una
     environment:
@@ -116,7 +116,7 @@ services:
     restart: unless-stopped
 
   carga:
-    image: ghcr.io/tu-usuario/tu-repo-carga:${TAG:-ep2}
+    image: ghcr.io/umbingelelo/ity1102-prueba-recomendacion-carga:${TAG:-ep2}
     environment:
       DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:-app}@db:5432/proyecto
     depends_on:

@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/tu-usuario/tu-repo-worker:${TAG:-ep3}
+    image: ghcr.io/umbingelelo/ity1102-prueba-recomendacion-worker:${TAG:-ep3}
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/%2F
       URL_DOMINIO: http://dominio:8000
