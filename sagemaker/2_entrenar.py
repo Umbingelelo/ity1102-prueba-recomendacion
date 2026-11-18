@@ -16,6 +16,12 @@ from comun_sm import (ARTEFACTOS, BUCKET, CASO, IMAGEN_XGBOOST, METADATOS, PREFI
 def hiperparametros() -> dict:
     # DESAFÍO S2 · los hiperparámetros. Si los cambias, compara la métrica de 4_probar.py antes y después.
     base = {"num_round": "150", "max_depth": "5", "eta": "0.1", "subsample": "0.8", "min_child_weight": "3"}
+    if CASO == "recomendacion":
+        # 19.630 filas con 5% de positivos: con los valores de arriba el modelo memoriza (aucpr 0,61 en
+        # entrenamiento y 0,11 en validación). Árboles más bajos y hojas de 50 filas como mínimo, igual que el
+        # modelo de EP2, lo corrigen: PR-AUC de prueba 0,098 → 0,134, recall 0,38 → 0,63 (medido 18-11-2026).
+        base = {"num_round": "200", "max_depth": "3", "eta": "0.05", "subsample": "0.8", "min_child_weight": "50",
+                "lambda": "1"}
     if METADATOS["tipo"] == "multiclase":
         return {**base, "objective": "multi:softprob", "num_class": str(len(METADATOS["clases"])),
                 "eval_metric": "mlogloss"}
